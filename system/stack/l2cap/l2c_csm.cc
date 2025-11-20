@@ -135,6 +135,13 @@ static uint8_t get_fcs_option(void) {
 #endif
 }
 
+static bool l2c_csm_channel_requires_peer_info(const tL2C_CCB* p_ccb) {
+  if (p_ccb == nullptr || p_ccb->p_rcb == nullptr) {
+    return false;
+  }
+  return p_ccb->p_rcb->ertm_info.preferred_mode != L2CAP_FCR_BASIC_MODE;
+}
+
 // Send a config request and adjust the state machine
 static void l2c_csm_send_config_req(tL2C_CCB* p_ccb) {
   tL2CAP_CFG_INFO config{};
@@ -342,7 +349,7 @@ static void l2c_csm_closed(tL2C_CCB* p_ccb, tL2CEVT event, void* p_data) {
 
       /* Wait for the info resp in this state before sending connect req (if
        * needed) */
-      if (!p_ccb->p_lcb->w4_info_rsp) {
+      if (!l2c_csm_channel_requires_peer_info(p_ccb) || !p_ccb->p_lcb->w4_info_rsp) {
         /* Need to have at least one compatible channel to continue */
         if (!l2c_fcr_chk_chan_modes(p_ccb)) {
           l2cu_release_ccb(p_ccb);
@@ -487,7 +494,7 @@ static void l2c_csm_orig_w4_sec_comp(tL2C_CCB* p_ccb, tL2CEVT event, void* p_dat
                            l2c_ccb_timer_timeout, p_ccb);
         l2cble_credit_based_conn_req(p_ccb); /* Start Connection     */
       } else {
-        if (!p_ccb->p_lcb->w4_info_rsp) {
+        if (!l2c_csm_channel_requires_peer_info(p_ccb) || !p_ccb->p_lcb->w4_info_rsp) {
           /* Need to have at least one compatible channel to continue */
           if (!l2c_fcr_chk_chan_modes(p_ccb)) {
             l2cu_release_ccb(p_ccb);
@@ -567,7 +574,7 @@ static void l2c_csm_term_w4_sec_comp(tL2C_CCB* p_ccb, tL2CEVT event, void* p_dat
 
       /* Wait for the info resp in next state before sending connect ind (if
        * needed) */
-      if (!p_ccb->p_lcb->w4_info_rsp) {
+      if (!l2c_csm_channel_requires_peer_info(p_ccb) || !p_ccb->p_lcb->w4_info_rsp) {
         log::debug("Not waiting for info response, sending connect response");
         /* Don't need to get info from peer or already retrieved so continue */
         alarm_set_on_mloop(p_ccb->l2c_ccb_timer, L2CAP_CHNL_CONNECT_TIMEOUT_MS,
